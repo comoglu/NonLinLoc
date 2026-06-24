@@ -774,7 +774,7 @@ int ReadNLDiffLoc_Input(FILE * fp_input) {
 
     /* read each input line */
 
-    while ((fgets_return = fgets(line, 4 * MAXLINE, fp_input)) != NULL
+    while ((fgets_return = fgets(line, sizeof (line), fp_input)) != NULL
             || fp_include != NULL) {
 
 
