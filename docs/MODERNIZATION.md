@@ -54,13 +54,17 @@ modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on th
       it runs in CI without Java/TauP. Covers 5 teleseismic events; deterministic
       and verified against a frozen reference. This widens coverage beyond the
       single non-GLOBAL path, de-risking Phase 2.
-- [~] **Phase 2** — string safety (in progress). Golden-path files done
-      (`velmod.c`, `GridLib.c`, `NLLocLib.c`, `GridMemLib.c`): ~430 `sprintf`/
-      `strcpy` calls into in-scope array buffers converted to bounded `snprintf`
-      using `sizeof(destination)`. Remaining within those files: a few `sprintf`
-      into function-parameter pointers of unknown size, and ~11 `strcat` calls —
-      both need caller analysis / a bounded-append form and are deferred.
-      Off-golden-path tool files (Grid2GMT, Vel2Grid3D, …) still to do.
+- [~] **Phase 2** — string safety (in progress). **All source exercised by the
+      regression tests is done**: the core libraries (`velmod.c`, `GridLib.c`,
+      `NLLocLib.c`, `GridMemLib.c`) and the per-tool drivers (`NLLoc1.c`,
+      `Grid2Time1.c`, `Time2EQ1.c`, `Vel2Grid1.c`). ~520 `sprintf`/`strcpy` calls
+      into in-scope array buffers converted to bounded `snprintf` using
+      `sizeof(destination)`, each step verified against both regression tests.
+      Deferred: a few `sprintf` into function-parameter pointers of unknown size,
+      and ~14 `strcat` calls (need caller analysis / a bounded-append form).
+      Off-test-path tool files (`Grid2GMT.c`, `NLDiffLoc.c`, `sphfd_SWR_NLL.c`,
+      `Loc2ssst.c`, … ~490 sites) remain; best done after adding test coverage
+      for those tools.
 - [ ] **Phase 3 / 4** — modularize, then encapsulate globals.
 
 ## Phased roadmap
