@@ -39,5 +39,8 @@ jobs:
           cmake .
           make -j"$(nproc)"
 
-      - name: Regression test (alaska sample vs frozen reference)
+      - name: Regression test (alaska / non-GLOBAL)
         run: tests/run_regression.sh
+
+      - name: Regression test (neic / GLOBAL teleseismic)
+        run: tests/run_regression_global.sh

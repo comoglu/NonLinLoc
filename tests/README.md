@@ -42,9 +42,27 @@ NLL_BIN=/path/to/bin tests/run_regression.sh
 Exit status is `0` on match and non-zero on regression (or build/run failure),
 so it can be used directly as a CI gate.
 
+## `run_regression_global.sh`
+
+GLOBAL-mode (teleseismic) counterpart. Runs `NLLoc` on the bundled `neic` sample
+(5 well-known teleseismic events: Fiji, S. East Pacific Rise, Arkansas, Morocco
+2004, S. Java 2006) using the committed ak135 spherical-earth travel-time grids
+in `nlloc_global_sample/taup/ak135/`, and compares the per-event output against
+`tests/reference/global/`.
+
+Those grids were generated once with the legacy `TauP_NLL` tool (TauP is Java).
+They are committed so the test stays dependency-light — at test time it needs
+only a C toolchain + CMake, no Java/TauP. To regenerate them, see
+`nlloc_global_sample/taup/TauP_Table_NLL.sh`.
+
+```bash
+tests/run_regression_global.sh
+```
+
+Both scripts run in CI via `.github/workflows/regression.yml`.
+
 ### Roadmap
 
 Planned extensions (see the modernization plan):
-- GLOBAL (teleseismic) mode dataset.
 - Additional sample datasets and more captured output fields.
-- A GitHub Actions workflow running this script on every push / pull request.
+- Tolerance-based comparison if cross-platform floating-point drift appears.

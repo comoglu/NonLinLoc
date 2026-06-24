@@ -49,8 +49,11 @@ modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on th
 - [x] **Phase 1c** — fixed two real bugs found via warnings: a stack
       buffer-overflow risk in `NLDiffLoc.c` (`fgets` size > buffer) and invalid
       pointer-vs-`0` allocation checks in `alomax_matrix.c`.
-- [ ] **Phase 0 follow-up** — expand the corpus (GLOBAL/teleseismic mode needs
-      committed time-grid fixtures, since generating them requires Java/TauP).
+- [x] **Phase 0 follow-up** — added a GLOBAL/teleseismic regression test
+      (`tests/run_regression_global.sh`) using committed ak135 grid fixtures, so
+      it runs in CI without Java/TauP. Covers 5 teleseismic events; deterministic
+      and verified against a frozen reference. This widens coverage beyond the
+      single non-GLOBAL path, de-risking Phase 2.
 - [ ] **Phase 2** — string safety (see below).
 - [ ] **Phase 3 / 4** — modularize, then encapsulate globals.
 
