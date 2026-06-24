@@ -54,7 +54,13 @@ modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on th
       it runs in CI without Java/TauP. Covers 5 teleseismic events; deterministic
       and verified against a frozen reference. This widens coverage beyond the
       single non-GLOBAL path, de-risking Phase 2.
-- [ ] **Phase 2** — string safety (see below).
+- [~] **Phase 2** — string safety (in progress). Golden-path files done
+      (`velmod.c`, `GridLib.c`, `NLLocLib.c`, `GridMemLib.c`): ~430 `sprintf`/
+      `strcpy` calls into in-scope array buffers converted to bounded `snprintf`
+      using `sizeof(destination)`. Remaining within those files: a few `sprintf`
+      into function-parameter pointers of unknown size, and ~11 `strcat` calls —
+      both need caller analysis / a bounded-append form and are deferred.
+      Off-golden-path tool files (Grid2GMT, Vel2Grid3D, …) still to do.
 - [ ] **Phase 3 / 4** — modularize, then encapsulate globals.
 
 ## Phased roadmap
