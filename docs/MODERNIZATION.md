@@ -21,9 +21,13 @@ modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on th
 ## Current state (baseline assessment)
 
 - **Builds clean**: CMake + `make` produce 0 errors, ~360 warnings.
-  - ~315 `-Wdeclaration-after-statement` — stylistic (C89 vs C99), no risk.
+  - With the project's own flags (`-Wall`), a clean-environment build emits only
+    **5 warnings**. The large warning counts seen previously came from extra flags
+    (`-Wdeclaration-after-statement`, `-Wextra`, …) injected via a developer's
+    shell `CFLAGS`, not from the repository — the code is much cleaner than it
+    first appears.
   - **31 `-Wunused-result`** — genuine latent bugs: ignored return values of
-    `fread`/`fscanf`/`fgets`/`system`. These are addressed in Phase 1.
+    `fread`/`fscanf`/`fgets`/`system`. Addressed in Phase 1.
 - **Concentrated complexity**: `NLLocLib.c` (~15k lines) and `GridLib.c` (~7k
   lines) hold most of the logic.
 - **Pervasive global state**: ~100+ file-scope globals; the code is non-reentrant
@@ -35,24 +39,38 @@ modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on th
 - **Test oracle exists**: the `nlloc_sample` run diffs against
   `nlloc_sample_test_frozen_20220513`. Current `HEAD` reproduces it exactly.
 
+## Progress
+
+- [x] **Phase 0** — dependency-light regression harness (`tests/run_regression.sh`)
+      plus a GitHub Actions workflow (`.github/workflows/regression.yml`) that
+      builds and runs it on every push / PR.
+- [x] **Phase 1** — fixed all 31 `-Wunused-result` latent I/O bugs.
+- [x] **Phase 1b** — removed dead backup/duplicate files (8.3k lines).
+- [x] **Phase 1c** — fixed two real bugs found via warnings: a stack
+      buffer-overflow risk in `NLDiffLoc.c` (`fgets` size > buffer) and invalid
+      pointer-vs-`0` allocation checks in `alomax_matrix.c`.
+- [ ] **Phase 0 follow-up** — expand the corpus (GLOBAL/teleseismic mode needs
+      committed time-grid fixtures, since generating them requires Java/TauP).
+- [ ] **Phase 2** — string safety (see below).
+- [ ] **Phase 3 / 4** — modularize, then encapsulate globals.
+
 ## Phased roadmap
 
-### Phase 0 — Strengthen the safety net (enabler)
-- Add a dependency-light regression harness that runs the core pipeline
+### Phase 0 — Strengthen the safety net (enabler) — done
+- A dependency-light regression harness runs the core pipeline
   (`Vel2Grid` → `Grid2Time` → `Time2EQ` → `NLLoc`) and diffs against the frozen
-  reference, **without** requiring GMT or Java. *(Started in this PR.)*
+  reference, **without** requiring GMT or Java; CI runs it automatically.
 - Follow-up: expand the corpus — GLOBAL (teleseismic) mode, additional sample
-  datasets, more captured output fields — and wire it into CI (GitHub Actions).
+  datasets, more captured output fields.
 
-### Phase 1 — Zero-/low-risk correctness and hygiene
-- **Fix `-Wunused-result` I/O bugs** — check return values; report short reads /
-  failures instead of silently continuing. Success path unchanged. *(This PR.)*
-- Repo hygiene (separate PR): remove duplicated source trees and committed
-  `*_OLD`, `.ORIG`, `*OUT_OF_DATE*`, and `CMakeCache_OLD` artifacts.
+### Phase 1 — Zero-/low-risk correctness and hygiene — done
+- Fixed `-Wunused-result` I/O bugs, removed dead backups, fixed two real bugs.
 
 ### Phase 2 — String safety
-- Mechanically convert `sprintf` → `snprintf` and bound `strcpy`/`strcat` against
-  their destination buffer sizes. Each change verified against the regression net.
+- Convert `sprintf` → `snprintf` and bound `strcpy`/`strcat` against their
+  destination buffer sizes, verifying buffer sizes per site (not a blind sed:
+  `sizeof` is only correct for array buffers, not pointers). Each change verified
+  against the regression net. Best scoped to golden-path files first.
 
 ### Phase 3 — Modularize the monoliths
 - Split `NLLocLib.c` along its existing functional seams (I/O, search methods,
