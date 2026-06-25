@@ -13,7 +13,7 @@ location results. It is the safety net for the modernization work described in
    in an isolated temporary directory:
    `Vel2Grid` → `Grid2Time` → `Time2EQ` → `NLLoc`.
 3. Compares the combined location output (`loc/alaska.hyp`) against the frozen
-   reference in `nlloc_sample_test_frozen_20220513/original_output/alaska.hyp`,
+   reference in `nlloc_sample_test_frozen_20260625/original_output/alaska.hyp`,
    ignoring the date-stamped `SIGNATURE` line.
 
 A passing run means the locations and uncertainties are **byte-for-byte identical**

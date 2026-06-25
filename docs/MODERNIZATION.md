@@ -37,7 +37,7 @@ modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on th
 - **Repo hygiene**: duplicated source trees and committed backup/cache files
   inflate the apparent size.
 - **Test oracle exists**: the `nlloc_sample` run diffs against
-  `nlloc_sample_test_frozen_20220513`. Current `HEAD` reproduces it exactly.
+  `nlloc_sample_test_frozen_20260625`. Current `HEAD` reproduces it exactly.
 
 ## Progress
 
