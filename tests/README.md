@@ -59,10 +59,37 @@ only a C toolchain + CMake, no Java/TauP. To regenerate them, see
 tests/run_regression_global.sh
 ```
 
-Both scripts run in CI via `.github/workflows/regression.yml`.
+## `run_regression_ssst.sh`
+
+NLL-SSST test on a real, complex dataset: the **Parkfield 2004** example (383
+events, 38 stations) from the NLL-SSST-coherence procedure. Runs
+`Vel2Grid` → `Grid2Time` → `NLLoc` on the committed `nlloc_ssst_sample/` fixture
+and checks every located epicentre and depth against `tests/reference/ssst/`
+within a tolerance (default 250 m).
+
+Unlike the alaska/global tests, this one is **tolerance-based**, for a concrete
+reason: NLLoc's global search is stochastic and the reference was generated on
+macOS, so identical source on another platform gives numerically equivalent but
+not bit-identical locations (observed max ~80 m, vs the 500 m grid spacing). The
+example's own README expects output "identical or numerically similar". This is a
+platform property, not a code property — modernized and unmodified NonLinLoc
+produce byte-identical output on the same machine; both differ from the macOS
+reference by the same ~80 m. The 250 m tolerance sits well above that noise and
+far below any real regression (which moves locations by grid cells / km).
+
+It takes a few minutes (383 events). The fixture is only the picks + control
+files + reference (~3 MB); the full example (waveforms, QuakeML, coherence stage)
+is not needed for the C-code regression.
+
+```bash
+tests/run_regression_ssst.sh          # default 250 m tolerance
+TOL_M=150 tests/run_regression_ssst.sh
+```
+
+All three scripts run in CI via `.github/workflows/regression.yml`.
 
 ### Roadmap
 
 Planned extensions (see the modernization plan):
+- Add the SSST relocation stage (iterative `Loc2ssst`) to the Parkfield test.
 - Additional sample datasets and more captured output fields.
-- Tolerance-based comparison if cross-platform floating-point drift appears.

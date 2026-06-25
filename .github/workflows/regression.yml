@@ -10,14 +10,18 @@ on:
       - "src/**"
       - "tests/**"
       - "nlloc_sample/**"
-      - "nlloc_sample_test_frozen_20220513/**"
+      - "nlloc_sample_test_frozen_20260625/**"
+      - "nlloc_global_sample/**"
+      - "nlloc_ssst_sample/**"
       - ".github/workflows/regression.yml"
   pull_request:
     paths:
       - "src/**"
       - "tests/**"
       - "nlloc_sample/**"
-      - "nlloc_sample_test_frozen_20220513/**"
+      - "nlloc_sample_test_frozen_20260625/**"
+      - "nlloc_global_sample/**"
+      - "nlloc_ssst_sample/**"
       - ".github/workflows/regression.yml"
   workflow_dispatch:
 
@@ -44,3 +48,6 @@ jobs:
 
       - name: Regression test (neic / GLOBAL teleseismic)
         run: tests/run_regression_global.sh
+
+      - name: Regression test (NLL-SSST Parkfield, tolerance)
+        run: tests/run_regression_ssst.sh

@@ -54,6 +54,14 @@ modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on th
       it runs in CI without Java/TauP. Covers 5 teleseismic events; deterministic
       and verified against a frozen reference. This widens coverage beyond the
       single non-GLOBAL path, de-risking Phase 2.
+- [x] **Phase 0 follow-up** — added an NLL-SSST regression test
+      (`tests/run_regression_ssst.sh`) on the real Parkfield 2004 dataset (383
+      events). Tolerance-based (the reference is macOS-generated; the stochastic
+      search gives numerically-equivalent-not-bit-identical results across
+      platforms — max ~80 m vs a 500 m grid). Control experiment confirms the
+      modernized code is **byte-identical to unmodified upstream `dev`** on the
+      same machine; both differ from the macOS reference by the same ~80 m, so the
+      residual is platform, not the modernization.
 - [~] **Phase 2** — string safety (in progress). **All source exercised by the
       regression tests is done**: the core libraries (`velmod.c`, `GridLib.c`,
       `NLLocLib.c`, `GridMemLib.c`) and the per-tool drivers (`NLLoc1.c`,
