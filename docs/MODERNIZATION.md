@@ -7,9 +7,11 @@ modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on th
 ## Guiding principles
 
 1. **Never change scientific results without an explicit, reviewed reason.** Every
-   change is gated by a regression test that compares program output against a
-   frozen reference. A passing run means byte-for-byte identical locations and
-   uncertainties (excluding date stamps).
+   change is gated by regression tests that compare the located hypocentres
+   against a frozen reference within a tolerance well below any real regression
+   (a few tens of metres for well-constrained regional events). The estimator is
+   chosen per event class — maximum-likelihood for well-constrained, expectation
+   for weakly-constrained teleseismic events.
 2. **Small, reviewable steps.** Each pull request does one kind of thing
    (hygiene, warning fixes, a single module extraction). No mixed-concern PRs.
 3. **The test net comes first.** Refactoring is only as safe as the oracle that

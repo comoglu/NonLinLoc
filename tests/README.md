@@ -10,14 +10,24 @@ location results. It is the safety net for the modernization work described in
 
 1. Builds the core tools if they are not already present in `src/bin/`.
 2. Runs the core computational pipeline on the bundled `alaska` sample dataset,
-   in an isolated temporary directory:
+   in an isolated temporary directory (with any committed `loc/` artifacts
+   removed first, so only freshly produced output is checked):
    `Vel2Grid` → `Grid2Time` → `Time2EQ` → `NLLoc`.
-3. Compares the combined location output (`loc/alaska.hyp`) against the frozen
-   reference in `nlloc_sample_test_frozen_20260625/original_output/alaska.hyp`,
-   ignoring the date-stamped `SIGNATURE` line.
+3. Compares each freshly produced per-event hypocentre against the frozen
+   reference in `nlloc_sample_test_frozen_20260625/original_output/`, within a
+   tolerance (default H = 250 m, Z = 500 m).
 
-A passing run means the locations and uncertainties are **byte-for-byte identical**
-to the reference — i.e. behavior is preserved.
+A passing run means every located hypocentre agrees with the reference within
+tolerance — i.e. behavior is preserved. The comparison is on the
+maximum-likelihood (`GEOGRAPHIC`) hypocentre, which for these well-constrained
+regional events reproduces across platforms to within a few tens of metres. See
+[`lib_compare.sh`](lib_compare.sh) for why the estimator (ML vs. expectation) is
+chosen per event class, and the global section below.
+
+> Note: an earlier version of this test compared a single committed
+> `loc/alaska.hyp` file that `NLLoc` does not actually regenerate, so it silently
+> validated stale output. The test now deletes `loc/` before running and compares
+> only freshly produced per-event files. (Thanks to A. Lomax for catching this.)
 
 ### Why a separate script (vs. `run_tests.bash`)
 
@@ -55,6 +65,13 @@ They are committed so the test stays dependency-light — at test time it needs
 only a C toolchain + CMake, no Java/TauP. To regenerate them, see
 `nlloc_global_sample/taup/TauP_Table_NLL.sh`.
 
+It compares the **expectation** hypocentre (the `STAT_GEOG` line) within a wider
+tolerance (default H = 5 km, Z = 10 km). These teleseismic events are deep and
+weakly constrained, so the maximum-likelihood point can jump between near-equal
+local PDF maxima across platforms/compilers, while the expectation (the PDF's
+first moment) stays stable. This is the opposite trade-off from the regional
+tests above, and follows A. Lomax's guidance.
+
 ```bash
 tests/run_regression_global.sh
 ```
@@ -65,28 +82,31 @@ NLL-SSST test on a real, complex dataset: the **Parkfield 2004** example (383
 events, 38 stations) from the NLL-SSST-coherence procedure. Runs
 `Vel2Grid` → `Grid2Time` → `NLLoc` on the committed `nlloc_ssst_sample/` fixture
 and checks every located epicentre and depth against `tests/reference/ssst/`
-within a tolerance (default 250 m).
+within a tolerance (default H = 250 m, Z = 500 m), on the ML (`GEOGRAPHIC`)
+hypocentre.
 
-Unlike the alaska/global tests, this one is **tolerance-based**, for a concrete
-reason: NLLoc's global search is stochastic and the reference was generated on
-macOS, so identical source on another platform gives numerically equivalent but
-not bit-identical locations (observed max ~80 m, vs the 500 m grid spacing). The
-example's own README expects output "identical or numerically similar". This is a
-platform property, not a code property — modernized and unmodified NonLinLoc
-produce byte-identical output on the same machine; both differ from the macOS
-reference by the same ~80 m. The 250 m tolerance sits well above that noise and
-far below any real regression (which moves locations by grid cells / km).
+NLLoc's global search is stochastic and the reference was generated on macOS, so
+identical source on another platform gives numerically equivalent but not
+bit-identical locations (observed max ~78 m on the ML hypocentre, vs the 500 m
+grid spacing). The example's own README expects output "identical or numerically
+similar". This is a platform property, not a code property — modernized and
+unmodified NonLinLoc produce byte-identical output on the same machine; both
+differ from the macOS reference by the same ~78 m. The tolerance sits well above
+that noise and far below any real regression (which moves locations by grid
+cells / km).
 
 It takes a few minutes (383 events). The fixture is only the picks + control
 files + reference (~3 MB); the full example (waveforms, QuakeML, coherence stage)
 is not needed for the C-code regression.
 
 ```bash
-tests/run_regression_ssst.sh          # default 250 m tolerance
-TOL_M=150 tests/run_regression_ssst.sh
+tests/run_regression_ssst.sh                       # default H=250 m, Z=500 m
+HTOL_M=150 ZTOL_M=300 tests/run_regression_ssst.sh
 ```
 
-All three scripts run in CI via `.github/workflows/regression.yml`.
+All three scripts run in CI via `.github/workflows/regression.yml`. They share the
+location-comparison helpers in [`lib_compare.sh`](lib_compare.sh), and each builds
+its parallel `make` job count portably (`nproc` on Linux, `sysctl` on macOS).
 
 ### Roadmap
 

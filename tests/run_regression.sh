@@ -34,16 +34,24 @@ done
 if [ "${missing}" -ne 0 ]; then
     echo "[regression] tools missing in ${BIN_DIR}, building..."
     mkdir -p "${REPO_ROOT}/src/bin"
-    ( cd "${REPO_ROOT}/src" && rm -f CMakeCache.txt && cmake . >/dev/null && make -j"$(nproc)" >/dev/null ) \
+    ( cd "${REPO_ROOT}/src" && rm -f CMakeCache.txt && cmake . >/dev/null && make -j"$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)" >/dev/null ) \
         || { echo "[regression] BUILD FAILED"; exit 2; }
 fi
 export PATH="${BIN_DIR}:${PATH}"
 
+source "${SCRIPT_DIR}/lib_compare.sh"
+HTOL_M="${HTOL_M:-250}"   # horizontal tolerance, metres
+ZTOL_M="${ZTOL_M:-500}"   # depth tolerance, metres (depth is less constrained)
+
 # --- run the pipeline in an isolated work dir ---------------------------------
+# Copy the sample, then DELETE any committed loc/ artifacts before running:
+# NLLoc writes per-event files (loc/alaska.<ot>.grid0.loc.hyp), so a stale
+# committed file must never be left in place to shadow freshly produced output.
 WORK="$(mktemp -d)"
 trap 'rm -rf "${WORK}"' EXIT
 cp -r "${REPO_ROOT}/nlloc_sample/." "${WORK}/"
 cd "${WORK}"
+rm -rf loc
 mkdir -p model time obs_synth loc gmt
 
 CTRL="run/nlloc_sample.in"
@@ -57,30 +65,33 @@ for step in "Vel2Grid ${CTRL}" "Grid2Time ${CTRL}" "Time2EQ ${CTRL}" "NLLoc ${CT
     fi
 done
 
-# --- compare against the frozen reference -------------------------------------
-REF="${REPO_ROOT}/nlloc_sample_test_frozen_20260625/original_output/alaska.hyp"
-OUT="${WORK}/loc/alaska.hyp"
+# --- compare expectation hypocentres against the frozen reference -------------
+# One per-event file per located event; match by NLLoc's deterministic filename.
+REF_DIR="${REPO_ROOT}/nlloc_sample_test_frozen_20260625/original_output"
+nref=0; missing=0
+: > "${WORK}/_ref_loc"; : > "${WORK}/_out_loc"
+for ref in "${REF_DIR}"/alaska.[0-9]*.grid0.loc.hyp; do
+    nref=$((nref + 1))
+    out="${WORK}/loc/$(basename "${ref}")"
+    if [ ! -f "${out}" ]; then
+        echo "[regression] FAIL: expected output $(basename "${ref}") not produced"
+        missing=1
+        continue
+    fi
+    _loc_lines "${ref}" ml >> "${WORK}/_ref_loc"
+    _loc_lines "${out}" ml >> "${WORK}/_out_loc"
+done
+[ "${missing}" -eq 0 ] || exit 1
 
-if [ ! -f "${OUT}" ]; then
-    echo "[regression] FAIL: expected output ${OUT} not produced"
-    exit 1
-fi
-
-# The SIGNATURE line contains the run date/time and is expected to differ.
-strip() { grep -v -e 'SIGNATURE' "$1"; }
-
-DIFF_LINES="$(diff <(strip "${REF}") <(strip "${OUT}") | grep -c '^[<>]')"
+read -r n maxh maxz nbad < <(paste "${WORK}/_ref_loc" "${WORK}/_out_loc" | score_pairs "${HTOL_M}" "${ZTOL_M}")
 
 echo "----------------------------------------------------------------------"
-if [ "${DIFF_LINES}" -eq 0 ]; then
-    echo "[regression] PASS: location output identical to frozen reference"
-    echo "             (compared $(strip "${OUT}" | wc -l) lines, SIGNATURE excluded)"
+echo "[regression] events: ${n}/${nref}   tolerance: H=${HTOL_M} m  Z=${ZTOL_M} m"
+echo "  max horizontal=${maxh} m   max depth=${maxz} m   (ML hypocentre)"
+if [ "${n}" -eq "${nref}" ] && [ "${nbad}" -eq 0 ]; then
+    echo "[regression] PASS: all ${n} locations within tolerance of frozen reference"
     exit 0
 else
-    echo "[regression] FAIL: ${DIFF_LINES} differing line(s) vs frozen reference"
-    echo "             reference: ${REF}"
-    echo "             produced : ${OUT}"
-    echo "--- sample of differences (GEOGRAPHIC = locations) ---"
-    diff <(strip "${REF}" | grep GEOGRAPHIC) <(strip "${OUT}" | grep GEOGRAPHIC) | head -20
+    echo "[regression] FAIL: ${nbad} event(s) exceed tolerance (matched ${n}/${nref})"
     exit 1
 fi

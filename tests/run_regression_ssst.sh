@@ -29,13 +29,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BIN_DIR="${NLL_BIN:-${REPO_ROOT}/src/bin}"
 REF="${REPO_ROOT}/tests/reference/ssst/Parkfield_2004.sum.grid0.loc.hyp"
-TOL_M="${TOL_M:-250}"   # tolerance in metres (epicentre and depth)
+source "${SCRIPT_DIR}/lib_compare.sh"
+HTOL_M="${HTOL_M:-${TOL_M:-250}}"   # horizontal tolerance, metres
+ZTOL_M="${ZTOL_M:-500}"             # depth tolerance, metres
 CTRL="Parkfield_2004_Oppenheimer_1993.in"
 
 for t in Vel2Grid Grid2Time NLLoc; do
     if [ ! -x "${BIN_DIR}/${t}" ]; then
         echo "[regression-ssst] building tools..."
-        ( cd "${REPO_ROOT}/src" && rm -f CMakeCache.txt && cmake . >/dev/null && make -j"$(nproc)" >/dev/null ) \
+        ( cd "${REPO_ROOT}/src" && rm -f CMakeCache.txt && cmake . >/dev/null && make -j"$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)" >/dev/null ) \
             || { echo "[regression-ssst] BUILD FAILED"; exit 2; }
         break
     fi
@@ -58,42 +60,25 @@ done
 OUT="${WORK}/out/Oppenheimer1993/loc/Parkfield_2004.sum.grid0.loc.hyp"
 [ -f "${OUT}" ] || { echo "[regression-ssst] FAIL: no summary output produced"; exit 1; }
 
-nref=$(grep -c GEOGRAPHIC "${REF}")
-nout=$(grep -c GEOGRAPHIC "${OUT}")
+nref=$(count_events "${REF}")
+nout=$(count_events "${OUT}")
 if [ "${nref}" -ne "${nout}" ]; then
     echo "[regression-ssst] FAIL: event count ${nout} != reference ${nref}"; exit 1
 fi
 
-# Pair events in order (deterministic glob order on both platforms) and compute
-# max epicentre/depth difference in metres.
-result=$(paste \
-    <(grep GEOGRAPHIC "${REF}" | awk '{print $10, $12, $14}') \
-    <(grep GEOGRAPHIC "${OUT}" | awk '{print $10, $12, $14}') | \
-  awk -v tol="${TOL_M}" '
-    NF==6 {
-        lat=$1; dla=($1-$4); dlo=($2-$5); dz=($3-$6);
-        dla=dla<0?-dla:dla; dlo=dlo<0?-dlo:dlo; dz=dz<0?-dz:dz;
-        mlat=dla*111195.0;                      # deg lat -> m
-        mlon=dlo*111195.0*cos(lat*3.14159265/180.0);  # deg lon -> m
-        mz=dz*1000.0;                           # km -> m
-        if (mlat>maxlat) maxlat=mlat;
-        if (mlon>maxlon) maxlon=mlon;
-        if (mz>maxz)   maxz=mz;
-        if (mlat>tol||mlon>tol||mz>tol) nbad++;
-        n++;
-    }
-    END {
-        printf "%d %.1f %.1f %.1f %d", n, maxlat, maxlon, maxz, nbad+0;
-    }')
-read -r n maxlat maxlon maxz nbad <<< "${result}"
+# Pair events in order (deterministic obs order on both platforms) and compare
+# the ML hypocentre within tolerance. These Parkfield events are well
+# constrained, so the ML peak reproduces across platforms (<80 m) far better
+# than the expectation (see tests/lib_compare.sh).
+read -r n maxh maxz nbad < <(pair_locations "${REF}" "${OUT}" ml | score_pairs "${HTOL_M}" "${ZTOL_M}")
 
 echo "----------------------------------------------------------------------"
-echo "[regression-ssst] events: ${n}   tolerance: ${TOL_M} m"
-echo "  max |dLat|=${maxlat} m   max |dLon|=${maxlon} m   max |dDepth|=${maxz} m"
-if [ "${nbad}" -eq 0 ]; then
-    echo "[regression-ssst] PASS: all ${n} Parkfield locations within ${TOL_M} m of reference"
+echo "[regression-ssst] events: ${n}   tolerance: H=${HTOL_M} m  Z=${ZTOL_M} m"
+echo "  max horizontal=${maxh} m   max depth=${maxz} m   (ML hypocentre)"
+if [ "${n}" -eq "${nref}" ] && [ "${nbad}" -eq 0 ]; then
+    echo "[regression-ssst] PASS: all ${n} Parkfield locations within tolerance of reference"
     exit 0
 else
-    echo "[regression-ssst] FAIL: ${nbad} event(s) exceed ${TOL_M} m tolerance"
+    echo "[regression-ssst] FAIL: ${nbad} event(s) exceed tolerance (matched ${n}/${nref})"
     exit 1
 fi

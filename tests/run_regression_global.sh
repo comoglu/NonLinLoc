@@ -28,16 +28,24 @@ REF_DIR="${REPO_ROOT}/tests/reference/global"
 if [ ! -x "${BIN_DIR}/NLLoc" ]; then
     echo "[regression-global] NLLoc missing in ${BIN_DIR}, building..."
     mkdir -p "${REPO_ROOT}/src/bin"
-    ( cd "${REPO_ROOT}/src" && rm -f CMakeCache.txt && cmake . >/dev/null && make -j"$(nproc)" >/dev/null ) \
+    ( cd "${REPO_ROOT}/src" && rm -f CMakeCache.txt && cmake . >/dev/null && make -j"$(nproc 2>/dev/null || sysctl -n hw.logicalcpu)" >/dev/null ) \
         || { echo "[regression-global] BUILD FAILED"; exit 2; }
 fi
 export PATH="${BIN_DIR}:${PATH}"
 
-# Run in an isolated work dir.
+source "${SCRIPT_DIR}/lib_compare.sh"
+# Teleseismic locations are coarse-grid and depth is weakly constrained, so the
+# tolerances are wider than the regional tests. Compared on the expectation
+# hypocentre, which is stable where the maximum-likelihood point is not.
+HTOL_M="${HTOL_M:-5000}"    # horizontal tolerance, metres
+ZTOL_M="${ZTOL_M:-10000}"   # depth tolerance, metres
+
+# Run in an isolated work dir (drop any committed loc/ so nothing shadows output).
 WORK="$(mktemp -d)"
 trap 'rm -rf "${WORK}"' EXIT
 cp -r "${REPO_ROOT}/nlloc_global_sample/." "${WORK}/"
 cd "${WORK}"
+rm -rf loc
 mkdir -p loc
 
 echo "[regression-global] running NLLoc in ${WORK}"
@@ -47,34 +55,33 @@ if ! NLLoc run/neic_global.in > "${WORK}/NLLoc.log" 2>&1; then
     exit 1
 fi
 
-# Compare each frozen reference event against the produced output.
-# The SIGNATURE line carries the run date/time and is expected to differ.
-strip() { grep -v -e 'SIGNATURE' "$1"; }
-
-fail=0
-ncmp=0
-for ref in "${REF_DIR}"/*.hyp; do
+# Compare each frozen reference event's expectation hypocentre against output.
+nref=0; missing=0
+: > "${WORK}/_ref_loc"; : > "${WORK}/_out_loc"
+for ref in "${REF_DIR}"/global.[0-9]*.grid0.loc.hyp; do
+    nref=$((nref + 1))
     name="$(basename "${ref}")"
     out="${WORK}/loc/${name}"
     if [ ! -f "${out}" ]; then
         echo "[regression-global] FAIL: expected output ${name} not produced"
-        fail=1
+        missing=1
         continue
     fi
-    d="$(diff <(strip "${ref}") <(strip "${out}") | grep -c '^[<>]')"
-    ncmp=$((ncmp + 1))
-    if [ "${d}" -ne 0 ]; then
-        echo "[regression-global] FAIL: ${name} differs by ${d} line(s)"
-        diff <(strip "${ref}" | grep GEOGRAPHIC) <(strip "${out}" | grep GEOGRAPHIC) | head
-        fail=1
-    fi
+    _loc_lines "${ref}" expect >> "${WORK}/_ref_loc"
+    _loc_lines "${out}" expect >> "${WORK}/_out_loc"
 done
+[ "${missing}" -eq 0 ] || exit 1
+
+read -r n maxh maxz nbad < <(paste "${WORK}/_ref_loc" "${WORK}/_out_loc" | score_pairs "${HTOL_M}" "${ZTOL_M}")
 
 echo "----------------------------------------------------------------------"
-if [ "${fail}" -eq 0 ]; then
-    echo "[regression-global] PASS: all ${ncmp} teleseismic locations identical to frozen reference"
+echo "[regression-global] events: ${n}/${nref}   tolerance: H=${HTOL_M} m  Z=${ZTOL_M} m"
+echo "  max horizontal=${maxh} m   max depth=${maxz} m   (expectation hypocentre)"
+# (teleseismic: expectation is more stable than the ML peak across platforms)
+if [ "${n}" -eq "${nref}" ] && [ "${nbad}" -eq 0 ]; then
+    echo "[regression-global] PASS: all ${n} teleseismic locations within tolerance of reference"
     exit 0
 else
-    echo "[regression-global] FAIL: GLOBAL-mode output differs from frozen reference"
+    echo "[regression-global] FAIL: ${nbad} event(s) exceed tolerance (matched ${n}/${nref})"
     exit 1
 fi

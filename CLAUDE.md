@@ -26,12 +26,15 @@ This modernization is AI-assisted. To be precise about who did what:
   being kept.
 
 - **How behavior preservation is verified** — every change is gated by the
-  regression tests, which re-run the full location pipeline and compare output
-  byte-for-byte against frozen references in both regional and teleseismic
-  modes. That test net — not line-by-line human review — is what guarantees the
-  science is unchanged, which is why code the tests do not exercise is flagged
-  as higher-risk. The work is offered for the maintainer's review and domain
-  validation.
+  regression tests, which re-run the full location pipeline and compare the
+  located hypocentres against frozen references in regional, teleseismic and
+  SSST modes, within a tolerance well below any real regression. (Comparison is
+  on the maximum-likelihood hypocentre for well-constrained regional events and
+  the more stable expectation hypocentre for weakly-constrained teleseismic
+  events; see [tests/lib_compare.sh](tests/lib_compare.sh).) That test net — not
+  line-by-line human review — is what guarantees the science is unchanged, which
+  is why code the tests do not exercise is flagged as higher-risk. The work is
+  offered for the maintainer's review and domain validation.
 
 ## Methodology
 
@@ -39,8 +42,9 @@ The work follows a few non-negotiable rules:
 
 1. **Behavior-preserving.** Changes correct safety/robustness or structure
    without altering results. Removing functionality is out of scope.
-2. **Test-gated.** Nothing is committed unless both regression tests pass with
-   byte-identical output (see below). Each file is verified before moving on.
+2. **Test-gated.** Nothing is committed unless the regression tests pass — every
+   located hypocentre within tolerance of the frozen reference (see below). Each
+   file is verified before moving on.
 3. **Small, reviewable commits.** One kind of change per commit, with the
    rationale, what was deferred, and the verification recorded in the message.
 4. **Defer rather than guess.** Where a change cannot be made safely without
@@ -76,8 +80,8 @@ pull request (`.github/workflows/regression.yml`).
 ## Guidance for future AI-assisted changes
 
 - Keep `main` a clean mirror of upstream; do modernization on feature branches.
-- Treat the two regression tests as the gate: run them after every change; a
-  non-`PASS` (any non-zero diff vs. the frozen reference) means stop and
+- Treat the three regression tests as the gate: run them after every change; a
+  non-`PASS` (any hypocentre outside tolerance vs. the frozen reference) means stop and
   investigate, not adjust the reference.
 - `sizeof(dest)` is only correct when `dest` is an in-scope array. For pointer
   parameters, trace the real buffer size or defer.
