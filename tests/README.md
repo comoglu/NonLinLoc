@@ -104,12 +104,46 @@ tests/run_regression_ssst.sh                       # default H=250 m, Z=500 m
 HTOL_M=150 ZTOL_M=300 tests/run_regression_ssst.sh
 ```
 
-All three scripts run in CI via `.github/workflows/regression.yml`. They share the
-location-comparison helpers in [`lib_compare.sh`](lib_compare.sh), and each builds
-its parallel `make` job count portably (`nproc` on Linux, `sysctl` on macOS).
+The four scripts share the location-comparison helpers in
+[`lib_compare.sh`](lib_compare.sh), and each builds its parallel `make` job count
+portably (`nproc` on Linux, `sysctl` on macOS). The first three run in CI via
+`.github/workflows/regression.yml`; the full-SSST test below is opt-in (too slow
+for CI).
+
+## `run_regression_ssst_full.sh`
+
+The **full** NLL-SSST test: the complete iterative Source-Specific Station Term
+procedure, not just the initial single-pass location. It runs
+`Vel2Grid` → `Grid2Time` for the initial grids, then drives A. Lomax's
+`run_ssst_relocations.bash` (which calls `NLLoc` + `Loc2ssst` over several
+iterations), and compares the final `loc_ssst_corr4` locations against the frozen
+macOS reference in `tests/reference/ssst_full/` within a tolerance (default
+H = 250 m, Z = 700 m; observed max ~141 m / ~508 m — the depth drift accumulates
+over the four iterations).
+
+Two properties make this test different:
+
+- **Slow (~20 min)** — 383 events × ~4 iterations. It is therefore **opt-in**,
+  not part of the CI gate.
+- **Stochastic** — `run_ssst.bash` shuffles the station order with `sort -R`, so
+  each run differs slightly. Events are matched by **origin time**, not file
+  order (the parallel `NLLoc` workers append to the summary as they finish, so
+  the two files list events in different orders — see `pair_by_time` in
+  `lib_compare.sh`). Both facts are why the comparison is tolerance-based on the
+  ML hypocentre rather than a byte diff.
+
+The Lomax scripts are driven **unchanged** except for two environment
+adaptations (not science): the parallel core count, and neutralising the Java
+SeismicityViewer launch so the test runs headless.
+
+```bash
+tests/run_regression_ssst_full.sh                  # default H=250 m, Z=700 m
+NLL_BIN=/path/to/bin tests/run_regression_ssst_full.sh
+```
 
 ### Roadmap
 
 Planned extensions (see the modernization plan):
-- Add the SSST relocation stage (iterative `Loc2ssst`) to the Parkfield test.
-- Additional sample datasets and more captured output fields.
+- NLL-coherence stage (needs the Python/obspy env) — run + validate + visualise
+  via the companion [NLL-SSST Studio](https://github.com/comoglu/nll-ssst-studio).
+- Additional sample datasets and a larger event set.

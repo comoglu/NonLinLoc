@@ -66,11 +66,11 @@ if [ "${nref}" -ne "${nout}" ]; then
     echo "[regression-ssst] FAIL: event count ${nout} != reference ${nref}"; exit 1
 fi
 
-# Pair events in order (deterministic obs order on both platforms) and compare
-# the ML hypocentre within tolerance. These Parkfield events are well
+# Match events by origin time (the sum file's event order is not guaranteed) and
+# compare the ML hypocentre within tolerance. These Parkfield events are well
 # constrained, so the ML peak reproduces across platforms (<80 m) far better
 # than the expectation (see tests/lib_compare.sh).
-read -r n maxh maxz nbad < <(pair_locations "${REF}" "${OUT}" ml | score_pairs "${HTOL_M}" "${ZTOL_M}")
+read -r n maxh maxz nbad < <(pair_by_time "${REF}" "${OUT}" ml | score_pairs "${HTOL_M}" "${ZTOL_M}")
 
 echo "----------------------------------------------------------------------"
 echo "[regression-ssst] events: ${n}   tolerance: H=${HTOL_M} m  Z=${ZTOL_M} m"

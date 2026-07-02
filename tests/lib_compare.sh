@@ -37,8 +37,29 @@ _loc_lines() {
 # count_events FILE -> number of located events (GEOGRAPHIC lines).
 count_events() { grep -c '^GEOGRAPHIC' "$1"; }
 
-# pair_locations REF OUT MODE -> rows "rlat rlon rz olat olon oz" (events in order).
-pair_locations() { paste <(_loc_lines "$1" "$3") <(_loc_lines "$2" "$3"); }
+# _loc_keyed FILE MODE -> "<otkey> lat lon depth_km" per event, block-aware.
+# otkey is a lexically-sortable origin-time string (yyyymmddhhmmss.sssss) taken
+# from the GEOGRAPHIC line, so events can be matched between two sum files that
+# list them in DIFFERENT order -- which the parallel SSST run does (each NLLoc
+# worker appends as it finishes). For expectation mode the coordinates come from
+# the STAT_GEOG line of the same event block, keyed by that block's origin time.
+_loc_keyed() {
+    awk -v mode="$2" '
+        /^GEOGRAPHIC/ {
+            key = sprintf("%04d%02d%02d%02d%02d%08.5f", $3, $4, $5, $6, $7, $8);
+            if (mode != "expect") print key, $10, $12, $14;   # ML: Lat Long Depth
+        }
+        /^STAT_GEOG/ { if (mode == "expect") print key, $3, $5, $7; }
+    ' "$1"
+}
+
+# pair_by_time REF OUT MODE -> rows "rlat rlon rz olat olon oz", matched by origin
+# time (both sides sorted by otkey, then paired). Robust to differing event order
+# between the two files; assumes the same event set (callers check the counts).
+pair_by_time() {
+    paste <(_loc_keyed "$1" "$3" | sort) <(_loc_keyed "$2" "$3" | sort) \
+        | awk 'NF==8 {print $2, $3, $4, $6, $7, $8}'
+}
 
 # score_pairs HTOL_M ZTOL_M  (reads paired rows on stdin)
 #   -> prints "n max_h_m max_z_m nbad"; exit 0 if nbad==0, else 1.

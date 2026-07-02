@@ -71,18 +71,25 @@ Requires only a C toolchain and CMake (no GMT, no Java):
 cd src && cmake . && make -j"$(nproc)" && cd ..
 tests/run_regression.sh          # regional (alaska) sample
 tests/run_regression_global.sh   # global (teleseismic) sample
+tests/run_regression_ssst.sh     # NLL-SSST initial location (Parkfield, ~3 min)
+tests/run_regression_ssst_full.sh  # full iterative SSST (Parkfield, opt-in, ~20 min)
 ```
 
-Both print `PASS` when the location output matches the frozen reference. See
-[tests/README.md](tests/README.md) for details. CI runs both on every push and
-pull request (`.github/workflows/regression.yml`).
+Each prints `PASS` when every located hypocentre is within tolerance of the
+frozen reference. See [tests/README.md](tests/README.md) for details. CI runs the
+three fast tests on every push and pull request
+(`.github/workflows/regression.yml`); the full iterative SSST test is slower and
+stochastic (opt-in — run locally, or trigger the manual
+`.github/workflows/regression-ssst-full.yml` workflow on GitHub).
 
 ## Guidance for future AI-assisted changes
 
 - Keep `main` a clean mirror of upstream; do modernization on feature branches.
-- Treat the three regression tests as the gate: run them after every change; a
+- Treat the three fast regression tests as the gate: run them after every change; a
   non-`PASS` (any hypocentre outside tolerance vs. the frozen reference) means stop and
-  investigate, not adjust the reference.
+  investigate, not adjust the reference. The full iterative SSST test
+  (`run_regression_ssst_full.sh`, ~20 min) is a deeper, opt-in check worth running
+  before pushing SSST-affecting changes.
 - `sizeof(dest)` is only correct when `dest` is an in-scope array. For pointer
   parameters, trace the real buffer size or defer.
 - When touching code the regression tests do not exercise, say so in the commit
