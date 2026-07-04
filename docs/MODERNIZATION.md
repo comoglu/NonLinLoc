@@ -73,13 +73,14 @@ modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on th
       remaining `strcat` calls into arrays converted to `strncat` bounded by
       `sizeof(dest) - strlen(dest) - 1`. `NLLocLib.c` is now fully clean. Each
       step verified against both fast regression tests.
-      Deferred (test-path): three functions in `GridLib.c` write into
-      **function-parameter pointers** of unknown size — `EvalPhaseID`
-      (`phase_out`), `SetOutName` (`out_file`/`lastfile`) and `getGMTJVAL`
-      (`jval_string`). Bounding these correctly needs a bounded-API change
-      (threading a destination-size argument through their callers), which is a
-      distinct step; `getGMTJVAL` is moreover only reached from the off-test-path
-      `Grid2GMT` tool.
+      Pointer-parameter writes bounded via a bounded-API change (threading a
+      destination-size argument through the callers): `EvalPhaseID`
+      (`phase_out` → `+ size_t phase_out_size`) and `SetOutName`
+      (`out_file`/`lastfile` → `+ out_file_size`/`lastfile_size`); every live
+      caller passes an in-scope array, so the added argument is `sizeof(array)`.
+      Remaining deferred (test-path): `getGMTJVAL` (`jval_string`) — same
+      pointer-param pattern, but reached only from the off-test-path `Grid2GMT`
+      tool, so it waits for that tool's test coverage.
       Deferred (off-test-path): the larger tool files (`Grid2GMT.c`,
       `NLDiffLoc.c`, `sphfd_SWR_NLL.c`, `Loc2ssst.c`, … ~490 sites) remain; best
       done after adding test coverage for those tools.
