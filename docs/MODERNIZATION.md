@@ -81,9 +81,16 @@ modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on th
       Remaining deferred (test-path): `getGMTJVAL` (`jval_string`) — same
       pointer-param pattern, but reached only from the off-test-path `Grid2GMT`
       tool, so it waits for that tool's test coverage.
-      Deferred (off-test-path): the larger tool files (`Grid2GMT.c`,
-      `NLDiffLoc.c`, `sphfd_SWR_NLL.c`, `Loc2ssst.c`, … ~490 sites) remain; best
-      done after adding test coverage for those tools.
+      `Loc2ssst.c` is now covered by the full iterative SSST test
+      (`run_regression_ssst_full.sh`), so all its live string sites were
+      converted under that net (verified: full SSST 383/383 within tolerance,
+      residuals unchanged from baseline).
+      Deferred (off-test-path): the larger tool files with **no** regression
+      coverage (`Grid2GMT.c`, `NLDiffLoc.c`, `sphfd_SWR_NLL.c`, `PhsAssoc.c`,
+      … ~490 sites) remain. Policy (agreed 2026-07-04): convert only under a
+      test net — do covered/easily-coverable tools, defer those needing GMT /
+      Java / heavy fixtures until real coverage exists, rather than converting
+      without a behavior oracle.
 - [ ] **Phase 3 / 4** — modularize, then encapsulate globals.
 
 ## Phased roadmap
