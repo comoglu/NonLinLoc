@@ -107,12 +107,18 @@ modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on th
            `ReadNLLoc_Input`, the `GetNLLoc_*`/`Get*` family) → `NLLocInput.c`
            (one additive extern added to NLLocLib.h: `iSaveNLLocSumCSV`);
         3. hypocenter output writers (`WriteHypoAlberto4/Fmamp/Ell/71/
-           InverseArchive`) → `NLLocOutput.c`.
-      NLLocLib.c: 15457 → 12290 lines (~3.2k moved into 3 modules).
-      Next candidate seams: the solution-quality/statistics cluster
-      (`CalcSolutionQuality_*`, ML/likelihood/variance helpers), the magnitude
-      routines, and the search methods (`LocGridSearch`/`LocMetropolis`/
-      `LocOctree`).
+           InverseArchive`) → `NLLocOutput.c`;
+        4. derived-quantity calcs (azimuth gap, arrival distances/counts,
+           Vp/Vs estimate, magnitude) → `NLLocDerived.c`;
+        5. solution-quality / likelihood core (`getLogPdfValue`,
+           `CalcSolutionQuality*`, ML/likelihood/variance origin-time helpers,
+           `CalcConfidenceIntrvl`) → `NLLocQuality.c` — added six `extern`
+           declarations for shared working-state globals and relocated the
+           `EDT_OT_WT_FLOOR` macro.
+      NLLocLib.c: 15457 → 9810 lines (~5.6k / 37% moved into 5 modules; the
+      monolith is now under 10k lines).
+      Next candidate seam: the search methods (`LocGridSearch`/`LocMetropolis`/
+      `LocOctree` and the octree helpers).
 - [ ] **Phase 4** — encapsulate global state (group the ~100+ file-scope
       globals into context structs; enables in-process parallelism).
 
