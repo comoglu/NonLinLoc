@@ -114,11 +114,21 @@ modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on th
            `CalcSolutionQuality*`, ML/likelihood/variance origin-time helpers,
            `CalcConfidenceIntrvl`) → `NLLocQuality.c` — added six `extern`
            declarations for shared working-state globals and relocated the
-           `EDT_OT_WT_FLOOR` macro.
-      NLLocLib.c: 15457 → 9810 lines (~5.6k / 37% moved into 5 modules; the
-      monolith is now under 10k lines).
-      Next candidate seam: the search methods (`LocGridSearch`/`LocMetropolis`/
-      `LocOctree` and the octree helpers).
+           `EDT_OT_WT_FLOOR` macro;
+        6. oct-tree search routines (`InitializeOcttree`, `LocOctree`,
+           `LocOctree_core`, `getOctTreeStationDensityWeight*`,
+           `GenEventScatterOcttree`) → `NLLocOctree.c` (no header change);
+        7. grid-search / Metropolis methods (`LocGridSearch`, `LocMetropolis`,
+           `GetNextMetropolisSample`, `MetropolisTest`, `SaveBestLocation`) →
+           `NLLocSearch.c` (no header change).
+      NLLocLib.c: 15457 → 8193 lines (~7.3k / 47% moved into 7 modules; the
+      monolith is essentially halved and split along clean functional seams).
+      Remaining candidate seam: the observation-reading layer
+      (`GetObservations` / `GetNextObs`, ~2k lines). What is left in NLLocLib.c
+      is the core driver — `Locate`/`SaveLocation`, observation reading, the
+      weight-matrix / centered-times helpers, date/time and travel-time
+      utilities, summary-file open/close, and topo / station-distribution
+      helpers.
 - [ ] **Phase 4** — encapsulate global state (group the ~100+ file-scope
       globals into context structs; enables in-process parallelism).
 
