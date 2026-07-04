@@ -64,17 +64,25 @@ modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on th
       modernized code is **byte-identical to unmodified upstream `dev`** on the
       same machine; both differ from the macOS reference by the same ~80 m, so the
       residual is platform, not the modernization.
-- [~] **Phase 2** — string safety (in progress). **All source exercised by the
-      regression tests is done**: the core libraries (`velmod.c`, `GridLib.c`,
-      `NLLocLib.c`, `GridMemLib.c`) and the per-tool drivers (`NLLoc1.c`,
-      `Grid2Time1.c`, `Time2EQ1.c`, `Vel2Grid1.c`). ~520 `sprintf`/`strcpy` calls
-      into in-scope array buffers converted to bounded `snprintf` using
-      `sizeof(destination)`, each step verified against both regression tests.
-      Deferred: a few `sprintf` into function-parameter pointers of unknown size,
-      and ~14 `strcat` calls (need caller analysis / a bounded-append form).
-      Off-test-path tool files (`Grid2GMT.c`, `NLDiffLoc.c`, `sphfd_SWR_NLL.c`,
-      `Loc2ssst.c`, … ~490 sites) remain; best done after adding test coverage
-      for those tools.
+- [~] **Phase 2** — string safety (in progress). **All in-array/struct-member
+      string sites in the source exercised by the regression tests are done**:
+      the core libraries (`velmod.c`, `GridLib.c`, `NLLocLib.c`, `GridMemLib.c`)
+      and the per-tool drivers (`NLLoc1.c`, `Grid2Time1.c`, `Time2EQ1.c`,
+      `Vel2Grid1.c`). ~520 `sprintf`/`strcpy` calls into in-scope array buffers
+      converted to bounded `snprintf` using `sizeof(destination)`, plus the
+      remaining `strcat` calls into arrays converted to `strncat` bounded by
+      `sizeof(dest) - strlen(dest) - 1`. `NLLocLib.c` is now fully clean. Each
+      step verified against both fast regression tests.
+      Deferred (test-path): three functions in `GridLib.c` write into
+      **function-parameter pointers** of unknown size — `EvalPhaseID`
+      (`phase_out`), `SetOutName` (`out_file`/`lastfile`) and `getGMTJVAL`
+      (`jval_string`). Bounding these correctly needs a bounded-API change
+      (threading a destination-size argument through their callers), which is a
+      distinct step; `getGMTJVAL` is moreover only reached from the off-test-path
+      `Grid2GMT` tool.
+      Deferred (off-test-path): the larger tool files (`Grid2GMT.c`,
+      `NLDiffLoc.c`, `sphfd_SWR_NLL.c`, `Loc2ssst.c`, … ~490 sites) remain; best
+      done after adding test coverage for those tools.
 - [ ] **Phase 3 / 4** — modularize, then encapsulate globals.
 
 ## Phased roadmap
