@@ -56,3 +56,6 @@
 /nlloc_sample_test_frozen_20181208/
 /nlloc_sample_test_frozen_20220513/
 /NLLoc_archive
+# Full Parkfield 2004 SSST/coherence example dataset (~68 MB, local-only).
+# The committed ~3 MB tests/nlloc_ssst_sample/ fixture covers the SSST regression test.
+/NLL-SSST-coherence_example_Parkfield_2004_v9.0/
