@@ -100,12 +100,19 @@ modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on th
       function definitions to a new `.c`, leave the declarations in
       `NLLocLib.h` untouched (zero caller churn); the new `.c` replicates
       NLLocLib.c's include order because `NLLocLib.h` is not self-contained.
-      First extraction done: the station-statistics hash table
-      (`hashtab`, `hash`/`lookup`, `Install/Free/Write/UpdateStaStat`) →
-      `NLLocStaStat.c` (byte-for-byte identical move; NLLocLib.c 15457→15172).
-      Next candidate seams: the `Get*` control-file parsers (~1.9k lines), the
-      `WriteHypo*` output writers (~1k lines), the solution-quality/statistics
-      cluster, and magnitude routines.
+      Extractions done so far (each a byte-for-byte identical move, verified
+      against all gates incl. full SSST):
+        1. station-statistics hash table → `NLLocStaStat.c`;
+        2. control-file input parsers (`is_nll_control_json`,
+           `ReadNLLoc_Input`, the `GetNLLoc_*`/`Get*` family) → `NLLocInput.c`
+           (one additive extern added to NLLocLib.h: `iSaveNLLocSumCSV`);
+        3. hypocenter output writers (`WriteHypoAlberto4/Fmamp/Ell/71/
+           InverseArchive`) → `NLLocOutput.c`.
+      NLLocLib.c: 15457 → 12290 lines (~3.2k moved into 3 modules).
+      Next candidate seams: the solution-quality/statistics cluster
+      (`CalcSolutionQuality_*`, ML/likelihood/variance helpers), the magnitude
+      routines, and the search methods (`LocGridSearch`/`LocMetropolis`/
+      `LocOctree`).
 - [ ] **Phase 4** — encapsulate global state (group the ~100+ file-scope
       globals into context structs; enables in-process parallelism).
 
