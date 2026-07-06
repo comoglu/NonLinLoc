@@ -120,15 +120,21 @@ modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on th
            `GenEventScatterOcttree`) → `NLLocOctree.c` (no header change);
         7. grid-search / Metropolis methods (`LocGridSearch`, `LocMetropolis`,
            `GetNextMetropolisSample`, `MetropolisTest`, `SaveBestLocation`) →
-           `NLLocSearch.c` (no header change).
-      NLLocLib.c: 15457 → 8193 lines (~7.3k / 47% moved into 7 modules; the
-      monolith is essentially halved and split along clean functional seams).
-      Remaining candidate seam: the observation-reading layer
-      (`GetObservations` / `GetNextObs`, ~2k lines). What is left in NLLocLib.c
-      is the core driver — `Locate`/`SaveLocation`, observation reading, the
-      weight-matrix / centered-times helpers, date/time and travel-time
-      utilities, summary-file open/close, and topo / station-distribution
-      helpers.
+           `NLLocSearch.c` (no header change);
+        8. observation-reading layer (`checkObs`, `GetObservations`,
+           `GetNextObs` and the arrival helpers) → `NLLocObs.c` (~5.5k lines,
+           the largest single extraction; no header change).
+      NLLocLib.c: 15457 → 2717 lines (~12.7k / 82% moved into 8 modules).
+      What is left in NLLocLib.c is the core driver — `Locate`/`SaveLocation`,
+      the weight-matrix / centered-times helpers, date/time and travel-time
+      utilities, duplicate checks, summary-file open/close, and topo /
+      station-distribution helpers. Further splitting has diminishing returns
+      from here.
+      Whole-split integrity was verified: the set of top-level function
+      definitions across NLLocLib.c + the 8 new modules is identical to the
+      pre-Phase-3 NLLocLib.c (106 functions, none lost or duplicated), and a
+      clean-slate rebuild passes all three fast regression tests plus the full
+      iterative SSST.
 - [ ] **Phase 4** — encapsulate global state (group the ~100+ file-scope
       globals into context structs; enables in-process parallelism).
 
