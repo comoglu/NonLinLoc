@@ -134,7 +134,8 @@ modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on th
       definitions across NLLocLib.c + the 8 new modules is identical to the
       pre-Phase-3 NLLocLib.c (106 functions, none lost or duplicated), and a
       clean-slate rebuild passes all three fast regression tests plus the full
-      iterative SSST.
+      iterative SSST. The resulting module layout and the location-pipeline
+      flow are documented in [ARCHITECTURE.md](ARCHITECTURE.md).
 - [ ] **Phase 4** — encapsulate global state (group the ~100+ file-scope
       globals into context structs; enables in-process parallelism).
 
