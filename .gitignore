@@ -59,3 +59,5 @@
 # Full Parkfield 2004 SSST/coherence example dataset (~68 MB, local-only).
 # The committed ~3 MB tests/nlloc_ssst_sample/ fixture covers the SSST regression test.
 /NLL-SSST-coherence_example_Parkfield_2004_v9.0/
+# Full Tosco-Romagnolo 2023 SSST/coherence example dataset (~351 MB, local-only).
+/NLL-SSST-coherence_example_ToscoRomagnolo_2023_v2.0/
