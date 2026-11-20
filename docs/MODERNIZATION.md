@@ -1,0 +1,194 @@
+# NonLinLoc Modernization Plan
+
+This document describes a **behavior-preserving, incrementally-verified** plan to
+modernize, simplify, and harden the NonLinLoc C codebase. It is maintained on the
+[`comoglu/NonLinLoc`](https://github.com/comoglu/NonLinLoc) fork.
+
+## Guiding principles
+
+1. **Never change scientific results without an explicit, reviewed reason.** Every
+   change is gated by regression tests that compare the located hypocentres
+   against a frozen reference within a tolerance well below any real regression
+   (a few tens of metres for well-constrained regional events). The estimator is
+   chosen per event class — maximum-likelihood for well-constrained, expectation
+   for weakly-constrained teleseismic events.
+2. **Small, reviewable steps.** Each pull request does one kind of thing
+   (hygiene, warning fixes, a single module extraction). No mixed-concern PRs.
+3. **The test net comes first.** Refactoring is only as safe as the oracle that
+   validates it. We expand the regression corpus *before* large structural change.
+4. **Domain expert owns "correct".** The maintainer (A. Lomax) validates that
+   reference outputs are seismologically correct; tooling/AI performs the
+   mechanical transformation and proves outputs are unchanged.
+
+## Current state (baseline assessment)
+
+- **Builds clean**: CMake + `make` produce 0 errors, ~360 warnings.
+  - With the project's own flags (`-Wall`), a clean-environment build emits only
+    **5 warnings**. The large warning counts seen previously came from extra flags
+    (`-Wdeclaration-after-statement`, `-Wextra`, …) injected via a developer's
+    shell `CFLAGS`, not from the repository — the code is much cleaner than it
+    first appears.
+  - **31 `-Wunused-result`** — genuine latent bugs: ignored return values of
+    `fread`/`fscanf`/`fgets`/`system`. Addressed in Phase 1.
+- **Concentrated complexity**: `NLLocLib.c` (~15k lines) and `GridLib.c` (~7k
+  lines) hold most of the logic.
+- **Pervasive global state**: ~100+ file-scope globals; the code is non-reentrant
+  and not thread-safe. Parallelism is achieved by launching separate OS processes.
+- **String-handling surface**: heavy use of `sprintf`/`strcpy`/`strcat` into
+  fixed buffers (overflow risk; no `gets`).
+- **Repo hygiene**: duplicated source trees and committed backup/cache files
+  inflate the apparent size.
+- **Test oracle exists**: the `nlloc_sample` run diffs against
+  `nlloc_sample_test_frozen_20260625`. Current `HEAD` reproduces it exactly.
+
+## Progress
+
+- [x] **Phase 0** — dependency-light regression harness (`tests/run_regression.sh`)
+      plus a GitHub Actions workflow (`.github/workflows/regression.yml`) that
+      builds and runs it on every push / PR.
+- [x] **Phase 1** — fixed all 31 `-Wunused-result` latent I/O bugs.
+- [x] **Phase 1b** — removed dead backup/duplicate files (8.3k lines).
+- [x] **Phase 1c** — fixed two real bugs found via warnings: a stack
+      buffer-overflow risk in `NLDiffLoc.c` (`fgets` size > buffer) and invalid
+      pointer-vs-`0` allocation checks in `alomax_matrix.c`.
+- [x] **Phase 0 follow-up** — added a GLOBAL/teleseismic regression test
+      (`tests/run_regression_global.sh`) using committed ak135 grid fixtures, so
+      it runs in CI without Java/TauP. Covers 5 teleseismic events; deterministic
+      and verified against a frozen reference. This widens coverage beyond the
+      single non-GLOBAL path, de-risking Phase 2.
+- [x] **Phase 0 follow-up** — added an NLL-SSST regression test
+      (`tests/run_regression_ssst.sh`) on the real Parkfield 2004 dataset (383
+      events). Tolerance-based (the reference is macOS-generated; the stochastic
+      search gives numerically-equivalent-not-bit-identical results across
+      platforms — max ~80 m vs a 500 m grid). Control experiment confirms the
+      modernized code is **byte-identical to unmodified upstream `dev`** on the
+      same machine; both differ from the macOS reference by the same ~80 m, so the
+      residual is platform, not the modernization.
+- [~] **Phase 2** — string safety (in progress). **All in-array/struct-member
+      string sites in the source exercised by the regression tests are done**:
+      the core libraries (`velmod.c`, `GridLib.c`, `NLLocLib.c`, `GridMemLib.c`)
+      and the per-tool drivers (`NLLoc1.c`, `Grid2Time1.c`, `Time2EQ1.c`,
+      `Vel2Grid1.c`). ~520 `sprintf`/`strcpy` calls into in-scope array buffers
+      converted to bounded `snprintf` using `sizeof(destination)`, plus the
+      remaining `strcat` calls into arrays converted to `strncat` bounded by
+      `sizeof(dest) - strlen(dest) - 1`. `NLLocLib.c` is now fully clean. Each
+      step verified against both fast regression tests.
+      Pointer-parameter writes bounded via a bounded-API change (threading a
+      destination-size argument through the callers): `EvalPhaseID`
+      (`phase_out` → `+ size_t phase_out_size`) and `SetOutName`
+      (`out_file`/`lastfile` → `+ out_file_size`/`lastfile_size`); every live
+      caller passes an in-scope array, so the added argument is `sizeof(array)`.
+      Remaining deferred (test-path): `getGMTJVAL` (`jval_string`) — same
+      pointer-param pattern, but reached only from the off-test-path `Grid2GMT`
+      tool, so it waits for that tool's test coverage.
+      `Loc2ssst.c` is now covered by the full iterative SSST test
+      (`run_regression_ssst_full.sh`), so all its live string sites were
+      converted under that net (verified: full SSST 383/383 within tolerance,
+      residuals unchanged from baseline).
+      Deferred (off-test-path): the larger tool files with **no** regression
+      coverage (`Grid2GMT.c`, `NLDiffLoc.c`, `sphfd_SWR_NLL.c`, `PhsAssoc.c`,
+      … ~490 sites) remain. Policy (agreed 2026-07-04): convert only under a
+      test net — do covered/easily-coverable tools, defer those needing GMT /
+      Java / heavy fixtures until real coverage exists, rather than converting
+      without a behavior oracle.
+- [~] **Phase 3** — modularize the monoliths (in progress). Splitting
+      `NLLocLib.c` (~15k lines) along its existing functional seams into
+      separate translation units, as **pure code movement** (no logic change),
+      verified at each step. This is tractable because NLLocLib.c's globals are
+      plain definitions in the `.c` plus `extern` declarations in `NLLocLib.h`,
+      so moved functions reach them by including the header. Method: move
+      function definitions to a new `.c`, leave the declarations in
+      `NLLocLib.h` untouched (zero caller churn); the new `.c` replicates
+      NLLocLib.c's include order because `NLLocLib.h` is not self-contained.
+      Extractions done so far (each a byte-for-byte identical move, verified
+      against all gates incl. full SSST):
+        1. station-statistics hash table → `NLLocStaStat.c`;
+        2. control-file input parsers (`is_nll_control_json`,
+           `ReadNLLoc_Input`, the `GetNLLoc_*`/`Get*` family) → `NLLocInput.c`
+           (one additive extern added to NLLocLib.h: `iSaveNLLocSumCSV`);
+        3. hypocenter output writers (`WriteHypoAlberto4/Fmamp/Ell/71/
+           InverseArchive`) → `NLLocOutput.c`;
+        4. derived-quantity calcs (azimuth gap, arrival distances/counts,
+           Vp/Vs estimate, magnitude) → `NLLocDerived.c`;
+        5. solution-quality / likelihood core (`getLogPdfValue`,
+           `CalcSolutionQuality*`, ML/likelihood/variance origin-time helpers,
+           `CalcConfidenceIntrvl`) → `NLLocQuality.c` — added six `extern`
+           declarations for shared working-state globals and relocated the
+           `EDT_OT_WT_FLOOR` macro;
+        6. oct-tree search routines (`InitializeOcttree`, `LocOctree`,
+           `LocOctree_core`, `getOctTreeStationDensityWeight*`,
+           `GenEventScatterOcttree`) → `NLLocOctree.c` (no header change);
+        7. grid-search / Metropolis methods (`LocGridSearch`, `LocMetropolis`,
+           `GetNextMetropolisSample`, `MetropolisTest`, `SaveBestLocation`) →
+           `NLLocSearch.c` (no header change);
+        8. observation-reading layer (`checkObs`, `GetObservations`,
+           `GetNextObs` and the arrival helpers) → `NLLocObs.c` (~5.5k lines,
+           the largest single extraction; no header change).
+      NLLocLib.c: 15457 → 2717 lines (~12.7k / 82% moved into 8 modules).
+      What is left in NLLocLib.c is the core driver — `Locate`/`SaveLocation`,
+      the weight-matrix / centered-times helpers, date/time and travel-time
+      utilities, duplicate checks, summary-file open/close, and topo /
+      station-distribution helpers. Further splitting has diminishing returns
+      from here.
+      Whole-split integrity was verified: the set of top-level function
+      definitions across NLLocLib.c + the 8 new modules is identical to the
+      pre-Phase-3 NLLocLib.c (106 functions, none lost or duplicated), and a
+      clean-slate rebuild passes all three fast regression tests plus the full
+      iterative SSST. The resulting module layout and the location-pipeline
+      flow are documented in [ARCHITECTURE.md](ARCHITECTURE.md).
+- [ ] **Phase 4** — encapsulate global state (group the ~100+ file-scope
+      globals into context structs; enables in-process parallelism).
+
+### Delivered upstream (Nov 2026)
+
+The work above was redone on top of A. Lomax's current code and merged into
+the TexNet repository (`ut-beg-texnet/NonLinLoc`, branch `dev_work`) as pull
+requests:
+
+- #93 — regression tests and CI; build fix for GCC 15 (`-std=gnu11`);
+- #94 — string safety (bounded `snprintf` / `strncat`);
+- #95 — `NLLocLib.c` split into nine files (Phase 3), plus
+  [ARCHITECTURE.md](ARCHITECTURE.md);
+- #96 — `QML_ConfidenceEllipsoid` fixes (rotation sign; major axis in `LocSum`
+  output) and `tests/run_test_qml_ellipsoid.sh`.
+
+This fork's `modernize/dev-integration` branch now follows TexNet `dev_work`
+and adds only this file, `CLAUDE.md` and local `.gitignore` entries. The
+previous branch history is kept in the tag `archive/dev-integration-20261121`.
+New work goes to `dev_work` as small PRs.
+
+## Phased roadmap
+
+### Phase 0 — Strengthen the safety net (enabler) — done
+- A dependency-light regression harness runs the core pipeline
+  (`Vel2Grid` → `Grid2Time` → `Time2EQ` → `NLLoc`) and diffs against the frozen
+  reference, **without** requiring GMT or Java; CI runs it automatically.
+- Follow-up: expand the corpus — GLOBAL (teleseismic) mode, additional sample
+  datasets, more captured output fields.
+
+### Phase 1 — Zero-/low-risk correctness and hygiene — done
+- Fixed `-Wunused-result` I/O bugs, removed dead backups, fixed two real bugs.
+
+### Phase 2 — String safety
+- Convert `sprintf` → `snprintf` and bound `strcpy`/`strcat` against their
+  destination buffer sizes, verifying buffer sizes per site (not a blind sed:
+  `sizeof` is only correct for array buffers, not pointers). Each change verified
+  against the regression net. Best scoped to golden-path files first.
+
+### Phase 3 — Modularize the monoliths
+- Split `NLLocLib.c` along its existing functional seams (I/O, search methods,
+  grid handling, statistics) into separate translation units with clear headers.
+  Pure code movement, no logic change, verified at each step.
+
+### Phase 4 — Encapsulate global state
+- Group related globals into context structs threaded through call sites. This is
+  the highest-value, highest-effort change; it enables in-process parallelism. Done
+  last, on top of the strengthened test net.
+
+## How to run the regression test
+
+```
+tests/run_regression.sh
+```
+
+See [tests/README.md](../tests/README.md) for details.
